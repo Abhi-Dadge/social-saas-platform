@@ -6,7 +6,10 @@ const scheduler = require("../services/scheduler");
 const publisher = require("../services/publisher");
 const { generateCaption } = require("../services/ai");
 
-// ✅ Create Post
+
+// =====================
+// ✅ CREATE POST
+// =====================
 router.post("/", (req, res) => {
     try {
         let { content, platforms, scheduledAt } = req.body;
@@ -18,8 +21,8 @@ router.post("/", (req, res) => {
             });
         }
 
-        // 🔥 AI Enhancement
-        const finalContent = content;
+        // 🔥 AI (optional)
+        const finalContent = generateCaption ? generateCaption(content) : content;
 
         const status = scheduledAt ? "Scheduled" : "Posted";
 
@@ -53,14 +56,14 @@ router.post("/", (req, res) => {
 
         // ✅ Schedule or publish
         try {
-    if (scheduledAt) {
-        scheduler.schedulePost(post);
-    } else {
-        publisher.publishPost(post);
-    }
-} catch (e) {
-    console.error("Scheduler/Publisher error:", e);
-}
+            if (scheduledAt) {
+                scheduler.schedulePost(post);
+            } else {
+                publisher.publishPost(post);
+            }
+        } catch (e) {
+            console.error("Scheduler/Publisher error:", e);
+        }
 
         return res.json({
             message: "Post processed successfully",
@@ -76,7 +79,9 @@ router.post("/", (req, res) => {
 });
 
 
-// ✅ Get Posts
+// =====================
+// ✅ GET POSTS
+// =====================
 router.get("/", (req, res) => {
     try {
         const posts = db.prepare(`SELECT * FROM posts ORDER BY id DESC`).all();
@@ -98,7 +103,9 @@ router.get("/", (req, res) => {
 });
 
 
-// ✅ Logs
+// =====================
+// ✅ LOGS
+// =====================
 router.get("/logs", (req, res) => {
     try {
         const logs = db.prepare(`
@@ -116,18 +123,24 @@ router.get("/logs", (req, res) => {
 });
 
 
-// ✅ Platforms
+// =====================
+// ✅ PLATFORMS
+// =====================
 router.get("/platforms", (req, res) => {
     return res.json(["twitter", "linkedin"]);
 });
 
 
-// ✅ Retry Post
+// =====================
+// ✅ RETRY POST (FIXED)
+// =====================
 router.post("/retry/:postId", (req, res) => {
     try {
+        const postId = req.params.postId;
+
         const post = db.prepare(`
             SELECT * FROM posts WHERE id = ?
-        `).get(req.params.postId);
+        `).get(postId);
 
         if (!post) {
             return res.status(404).json({
@@ -135,10 +148,21 @@ router.post("/retry/:postId", (req, res) => {
             });
         }
 
+        // ✅ Update status to Posted
+        db.prepare(`
+            UPDATE posts SET status = 'Posted', scheduled_at = NULL WHERE id = ?
+        `).run(postId);
+
+        // ✅ Update platform status
+        db.prepare(`
+            UPDATE post_platforms SET status = 'Posted' WHERE post_id = ?
+        `).run(postId);
+
+        // ✅ Publish again
         publisher.publishPost(post);
 
         return res.json({
-            message: "Retry triggered"
+            message: "Post retried & published"
         });
 
     } catch (err) {
@@ -150,7 +174,9 @@ router.post("/retry/:postId", (req, res) => {
 });
 
 
-// ✅ Delete Post
+// =====================
+// ✅ DELETE POST
+// =====================
 router.delete("/:id", (req, res) => {
     try {
         const postId = req.params.id;

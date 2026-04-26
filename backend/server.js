@@ -22,7 +22,15 @@ app.use("/posts", postRoutes);
 const authRoutes = require("./routes/auth");
 app.use("/auth", authRoutes);
 
+const scheduler = require("./services/scheduler");
+
+// run every 10 seconds
+setInterval(() => {
+    scheduler.checkScheduledPosts();
+}, 10000);
+
 // ✅ Start server (ALWAYS LAST)
 app.listen(5000, () => {
   console.log("Server running on port 5000");
 });
+
