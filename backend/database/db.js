@@ -1,17 +1,13 @@
 const Database = require("better-sqlite3");
 const path = require("path");
 
-// 📁 Ensure DB file is created in correct location
 const dbPath = path.join(__dirname, "database.sqlite");
 
-// 🔌 Create connection
 const db = new Database(dbPath);
 
-// ⚡ Performance + Safety
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
-// 🏗 Create tables
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,15 +46,6 @@ CREATE TABLE IF NOT EXISTS logs (
     FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 `);
-
-// 🌱 Optional: Seed default platforms (safe insert)
-const platforms = ["twitter", "linkedin", "instagram"];
-platforms.forEach(name => {
-    db.prepare(`
-        INSERT OR IGNORE INTO platforms (name)
-        VALUES (?)
-    `).run(name);
-});
 
 console.log("✅ Database connected & tables ready");
 

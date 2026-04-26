@@ -8,39 +8,75 @@ const SECRET = "secret123";
 
 // ✅ Register
 router.post("/register", async (req, res) => {
-  const { username, email, password } = req.body;
+  try {
+    console.log("REGISTER HIT:", req.body); // 🔥 debug
 
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: "All fields required" });
-  }
+    const { email, password } = req.body;
 
-  const hash = await bcrypt.hash(password, 10);
-
-  db.run(
-    `INSERT INTO users (email, password) VALUES (?, ?)`,
-    [email, hash],
-    function (err) {
-      if (err) return res.status(400).json({ error: "User exists" });
-
-      res.json({ message: "Registered successfully" });
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password required" });
     }
-  );
+
+    const existingUser = db.prepare(`
+      SELECT * FROM users WHERE email = ?
+    `).get(email);
+
+    if (existingUser) {
+      return res.status(400).json({ error: "User already exists" });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    const result = db.prepare(`
+      INSERT INTO users (email, password)
+      VALUES (?, ?)
+    `).run(email, hash);
+
+    res.json({
+      message: "Registered successfully",
+      userId: result.lastInsertRowid
+    });
+
+  } catch (err) {
+    console.error("REGISTER ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// ✅ Login
-router.post("/login", (req, res) => {
-  const { email, password } = req.body;
 
-  db.get(`SELECT * FROM users WHERE email = ?`, [email], async (err, user) => {
-    if (!user) return res.status(400).json({ error: "User not found" });
+// ✅ Login
+router.post("/login", async (req, res) => {
+  try {
+    console.log("LOGIN HIT:", req.body); // 🔥 debug
+
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password required" });
+    }
+
+    const user = db.prepare(`
+      SELECT * FROM users WHERE email = ?
+    `).get(email);
+
+    if (!user) {
+      return res.status(400).json({ error: "User not found" });
+    }
 
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ error: "Wrong password" });
 
-    const token = jwt.sign({ email }, SECRET);
+    if (!match) {
+      return res.status(400).json({ error: "Wrong password" });
+    }
+
+    const token = jwt.sign({ email }, SECRET, { expiresIn: "1d" });
 
     res.json({ token });
-  });
+
+  } catch (err) {
+    console.error("LOGIN ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
