@@ -12,7 +12,7 @@ export default function Register({ setPage }) {
     }
 
     try {
-      const res = await API.post("/auth/register", {
+      await API.post("/auth/register", {
         email,
         password
       });
