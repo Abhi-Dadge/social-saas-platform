@@ -11,47 +11,63 @@ router.post("/", (req, res) => {
     try {
         let { content, platforms, scheduledAt } = req.body;
 
-        if (!content || !platforms || platforms.length === 0) {
-            return res.status(400).json({ error: "Content and platforms are required" });
+        // 🔴 Validation
+        if (!content || !platforms || !Array.isArray(platforms) || platforms.length === 0) {
+            return res.status(400).json({
+                error: "Content and platforms are required"
+            });
         }
 
+        // 🔥 AI Enhancement
         const finalContent = generateCaption(content);
+
         const status = scheduledAt ? "Scheduled" : "Posted";
 
+        // ✅ Insert post
         const result = db.prepare(`
             INSERT INTO posts (content, status, scheduled_at, created_at)
             VALUES (?, ?, ?, datetime('now'))
-        `).run(finalContent, status, scheduledAt);
+        `).run(
+            finalContent,
+            status,
+            scheduledAt || null
+        );
 
         const postId = result.lastInsertRowid;
 
+        // ✅ Insert platforms
+        const insertPlatform = db.prepare(`
+            INSERT INTO post_platforms (post_id, platform, status)
+            VALUES (?, ?, ?)
+        `);
+
         platforms.forEach(p => {
-            db.prepare(`
-                INSERT INTO post_platforms (post_id, platform, status)
-                VALUES (?, ?, ?)
-            `).run(postId, p, status);
+            insertPlatform.run(postId, p, status);
         });
 
         const post = {
             id: postId,
             content: finalContent,
-            scheduled_at: scheduledAt
+            scheduled_at: scheduledAt || null
         };
 
+        // ✅ Schedule or publish
         if (scheduledAt) {
             scheduler.schedulePost(post);
         } else {
             publisher.publishPost(post);
         }
 
-        res.json({
+        return res.json({
             message: "Post processed successfully",
             postId
         });
 
     } catch (err) {
-        console.error("POST ERROR:", err);
-        res.status(500).json({ error: err.message });
+        console.error("❌ POST ERROR:", err);
+        return res.status(500).json({
+            error: "Internal Server Error"
+        });
     }
 });
 
@@ -59,7 +75,7 @@ router.post("/", (req, res) => {
 // ✅ Get Posts
 router.get("/", (req, res) => {
     try {
-        const posts = db.prepare(`SELECT * FROM posts`).all();
+        const posts = db.prepare(`SELECT * FROM posts ORDER BY id DESC`).all();
         const mappings = db.prepare(`SELECT * FROM post_platforms`).all();
 
         const result = posts.map(post => ({
@@ -67,10 +83,13 @@ router.get("/", (req, res) => {
             platforms: mappings.filter(m => m.post_id === post.id)
         }));
 
-        res.json(result);
+        return res.json(result);
+
     } catch (err) {
-        console.error("GET ERROR:", err);
-        res.status(500).json({ error: err.message });
+        console.error("❌ GET ERROR:", err);
+        return res.status(500).json({
+            error: "Internal Server Error"
+        });
     }
 });
 
@@ -82,20 +101,24 @@ router.get("/logs", (req, res) => {
             SELECT * FROM logs ORDER BY created_at DESC
         `).all();
 
-        res.json(logs);
+        return res.json(logs);
+
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("❌ LOG ERROR:", err);
+        return res.status(500).json({
+            error: "Internal Server Error"
+        });
     }
 });
 
 
 // ✅ Platforms
 router.get("/platforms", (req, res) => {
-    res.json(["twitter", "linkedin"]);
+    return res.json(["twitter", "linkedin"]);
 });
 
 
-// ✅ Retry
+// ✅ Retry Post
 router.post("/retry/:postId", (req, res) => {
     try {
         const post = db.prepare(`
@@ -103,31 +126,52 @@ router.post("/retry/:postId", (req, res) => {
         `).get(req.params.postId);
 
         if (!post) {
-            return res.status(404).json({ error: "Post not found" });
+            return res.status(404).json({
+                error: "Post not found"
+            });
         }
 
         publisher.publishPost(post);
-        res.json({ message: "Retry triggered" });
+
+        return res.json({
+            message: "Retry triggered"
+        });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("❌ RETRY ERROR:", err);
+        return res.status(500).json({
+            error: "Internal Server Error"
+        });
     }
 });
 
 
-// ✅ Delete
+// ✅ Delete Post
 router.delete("/:id", (req, res) => {
     try {
+        const postId = req.params.id;
+
         db.prepare(`DELETE FROM post_platforms WHERE post_id = ?`)
-          .run(req.params.id);
+          .run(postId);
 
-        db.prepare(`DELETE FROM posts WHERE id = ?`)
-          .run(req.params.id);
+        const result = db.prepare(`DELETE FROM posts WHERE id = ?`)
+          .run(postId);
 
-        res.json({ message: "Post deleted" });
+        if (result.changes === 0) {
+            return res.status(404).json({
+                error: "Post not found"
+            });
+        }
+
+        return res.json({
+            message: "Post deleted"
+        });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("❌ DELETE ERROR:", err);
+        return res.status(500).json({
+            error: "Internal Server Error"
+        });
     }
 });
 
