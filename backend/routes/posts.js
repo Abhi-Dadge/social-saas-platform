@@ -19,7 +19,7 @@ router.post("/", (req, res) => {
         }
 
         // 🔥 AI Enhancement
-        const finalContent = generateCaption(content);
+        const finalContent = content;
 
         const status = scheduledAt ? "Scheduled" : "Posted";
 
@@ -52,11 +52,15 @@ router.post("/", (req, res) => {
         };
 
         // ✅ Schedule or publish
-        if (scheduledAt) {
-            scheduler.schedulePost(post);
-        } else {
-            publisher.publishPost(post);
-        }
+        try {
+    if (scheduledAt) {
+        scheduler.schedulePost(post);
+    } else {
+        publisher.publishPost(post);
+    }
+} catch (e) {
+    console.error("Scheduler/Publisher error:", e);
+}
 
         return res.json({
             message: "Post processed successfully",
