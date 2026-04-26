@@ -5,7 +5,10 @@ const db = require("./database/db");
 
 const app = express();
 
-app.use(cors());
+
+app.use(cors({
+  origin: "*", // for now (later restrict)
+}));
 app.use(express.json());
 
 app.get("/", (req, res) => {
