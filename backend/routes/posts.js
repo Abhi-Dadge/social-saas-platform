@@ -6,9 +6,7 @@ const scheduler = require("../services/scheduler");
 const publisher = require("../services/publisher");
 const { generateCaption } = require("../services/ai");
 
-// =============================
-// ✅ CREATE POST
-// =============================
+// ✅ Create Post
 router.post("/", (req, res) => {
     try {
         let { content, platforms, scheduledAt } = req.body;
@@ -23,7 +21,7 @@ router.post("/", (req, res) => {
         const result = db.prepare(`
             INSERT INTO posts (content, status, scheduled_at, created_at)
             VALUES (?, ?, ?, datetime('now'))
-        `).run(finalContent, status, scheduledAt || null);
+        `).run(finalContent, status, scheduledAt);
 
         const postId = result.lastInsertRowid;
 
@@ -52,15 +50,13 @@ router.post("/", (req, res) => {
         });
 
     } catch (err) {
-        console.error("CREATE ERROR:", err);
+        console.error("POST ERROR:", err);
         res.status(500).json({ error: err.message });
     }
 });
 
 
-// =============================
-// ✅ GET POSTS
-// =============================
+// ✅ Get Posts
 router.get("/", (req, res) => {
     try {
         const posts = db.prepare(`SELECT * FROM posts`).all();
@@ -72,17 +68,14 @@ router.get("/", (req, res) => {
         }));
 
         res.json(result);
-
     } catch (err) {
-        console.error("FETCH ERROR:", err);
+        console.error("GET ERROR:", err);
         res.status(500).json({ error: err.message });
     }
 });
 
 
-// =============================
-// ✅ LOGS
-// =============================
+// ✅ Logs
 router.get("/logs", (req, res) => {
     try {
         const logs = db.prepare(`
@@ -91,15 +84,18 @@ router.get("/logs", (req, res) => {
 
         res.json(logs);
     } catch (err) {
-        console.error("LOG ERROR:", err);
         res.status(500).json({ error: err.message });
     }
 });
 
 
-// =============================
-// 🔁 RETRY
-// =============================
+// ✅ Platforms
+router.get("/platforms", (req, res) => {
+    res.json(["twitter", "linkedin"]);
+});
+
+
+// ✅ Retry
 router.post("/retry/:postId", (req, res) => {
     try {
         const post = db.prepare(`
@@ -111,19 +107,15 @@ router.post("/retry/:postId", (req, res) => {
         }
 
         publisher.publishPost(post);
-
         res.json({ message: "Retry triggered" });
 
     } catch (err) {
-        console.error("RETRY ERROR:", err);
         res.status(500).json({ error: err.message });
     }
 });
 
 
-// =============================
-// 🗑 DELETE
-// =============================
+// ✅ Delete
 router.delete("/:id", (req, res) => {
     try {
         db.prepare(`DELETE FROM post_platforms WHERE post_id = ?`)
@@ -135,7 +127,6 @@ router.delete("/:id", (req, res) => {
         res.json({ message: "Post deleted" });
 
     } catch (err) {
-        console.error("DELETE ERROR:", err);
         res.status(500).json({ error: err.message });
     }
 });
