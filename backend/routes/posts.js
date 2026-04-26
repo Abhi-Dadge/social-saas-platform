@@ -138,37 +138,46 @@ router.post("/retry/:postId", (req, res) => {
     try {
         const postId = req.params.postId;
 
+        // 🔍 Get post
         const post = db.prepare(`
             SELECT * FROM posts WHERE id = ?
         `).get(postId);
 
         if (!post) {
-            return res.status(404).json({
-                error: "Post not found"
-            });
+            return res.status(404).json({ error: "Post not found" });
         }
 
-        // ✅ Update status to Posted
+        console.log("🔁 Retrying post:", post);
+
+        // ✅ Update DB BEFORE publishing
         db.prepare(`
-            UPDATE posts SET status = 'Posted', scheduled_at = NULL WHERE id = ?
+            UPDATE posts 
+            SET status = 'Posted', scheduled_at = NULL 
+            WHERE id = ?
         `).run(postId);
 
-        // ✅ Update platform status
         db.prepare(`
-            UPDATE post_platforms SET status = 'Posted' WHERE post_id = ?
+            UPDATE post_platforms 
+            SET status = 'Posted' 
+            WHERE post_id = ?
         `).run(postId);
 
-        // ✅ Publish again
-        publisher.publishPost(post);
+        // ✅ Safe publish (important)
+        try {
+            publisher.publishPost(post);
+        } catch (pubErr) {
+            console.error("❌ Publisher error:", pubErr);
+        }
 
         return res.json({
-            message: "Post retried & published"
+            message: "Post retried successfully"
         });
 
     } catch (err) {
         console.error("❌ RETRY ERROR:", err);
+
         return res.status(500).json({
-            error: "Internal Server Error"
+            error: err.message || "Retry failed"
         });
     }
 });
