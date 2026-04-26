@@ -170,4 +170,4 @@ http://localhost:3000
 
 ## ⭐ Final Note
 
-This project demonstrates a **real-world SaaS architecture**, including scheduling, automation, and multi-platform integration in a scalable way.
+# This project demonstrates a **real-world SaaS architecture**, including scheduling, automation, and multi-platform integration in a scalable way.
